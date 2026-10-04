@@ -33,6 +33,11 @@ button,input,select,textarea{font:inherit}button{cursor:pointer;border:0}
 body{background:#fff!important}.no-print,.topbar,.sidebar{display:none!important}.main{margin:0!important;width:100%!important;padding:0!important}.print-sheet{display:block!important}.gatepass-paper{box-shadow:none!important;border:0!important;width:100%!important;min-height:277mm!important}
 }
 .print-sheet{display:none}.gatepass-paper{background:#fff;width:210mm;min-height:277mm;margin:0 auto;padding:12mm;border:1px solid #d4dce5;box-shadow:0 3px 20px #0002;color:#111;font-family:Arial,sans-serif}.gp-header{display:flex;justify-content:space-between;border-bottom:2px solid #123b68;padding-bottom:8px}.gp-brand{font-size:22px;font-weight:900;color:#123b68}.gp-title{text-align:right}.gp-title h1{font-size:20px;margin:0}.gp-title div{font-size:11px;color:#555;margin-top:4px}.gp-meta{display:grid;grid-template-columns:1fr 1fr;margin:10px 0;border:1px solid #222}.gp-meta div{padding:7px;border-right:1px solid #222;border-bottom:1px solid #222;font-size:11px}.gp-meta div:nth-child(even){border-right:0}.gp-meta div:nth-last-child(-n+2){border-bottom:0}.gp-label{font-size:9px;text-transform:uppercase;color:#555}.gp-value{font-size:11px;font-weight:700;margin-top:2px}.gp-table{width:100%;border-collapse:collapse;margin-top:10px}.gp-table th,.gp-table td{border:1px solid #222;padding:6px;font-size:10px}.gp-table th{background:#edf2f7;color:#111}.gp-summary{margin-top:8px;font-size:10px;text-align:right}.gp-footer{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:42px;text-align:center;font-size:10px}.sign{border-top:1px solid #222;padding-top:5px}.gp-note{margin-top:20px;border:1px solid #aaa;padding:7px;font-size:9px}
+
+/* Account / user management */
+.auth-tabs{display:flex;gap:6px;background:#edf3f9;padding:5px;border-radius:10px;margin:15px 0}.auth-tab{flex:1;padding:9px;border-radius:7px;background:transparent;font-weight:800;color:#536274}.auth-tab.active{background:#fff;color:#123b68;box-shadow:0 1px 4px #0002}
+.account-badge{display:inline-flex;align-items:center;gap:6px;background:#eaf3ff;color:#175cd3;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800}
+@media print{.print-sheet{display:block!important}}
 </style>
 </head>
 <body>
@@ -42,19 +47,30 @@ body{background:#fff!important}.no-print,.topbar,.sidebar{display:none!important
     <div class="login-logo">LPSL</div>
     <h1>Gate Pass Manager</h1>
     <p>Secure local inventory & gate-pass management</p>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" id="loginTab" onclick="showAuth('login')">Log In</button>
+      <button type="button" class="auth-tab" id="registerTab" onclick="showAuth('register')">Create Account</button>
+    </div>
     <form id="loginForm">
-      <div class="field"><label>Admin Username</label><input id="loginUser" autocomplete="username" required></div>
-      <div class="field"><label>Admin Password</label><input id="loginPass" type="password" autocomplete="current-password" required></div>
+      <div class="field"><label>Username</label><input id="loginUser" autocomplete="username" required></div>
+      <div class="field"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password" required></div>
       <button class="btn primary" type="submit">Sign In</button>
     </form>
-    <div class="login-note">All records are stored in this browser's Local Storage. Client-side credentials are not suitable for high-security production authentication.</div>
+    <form id="registerForm" class="hidden">
+      <div class="field"><label>Full Name</label><input id="regName" required></div>
+      <div class="field"><label>Create Username</label><input id="regUser" minlength="3" required></div>
+      <div class="field"><label>Create Password</label><input id="regPass" type="password" minlength="4" required></div>
+      <div class="field"><label>Confirm Password</label><input id="regPass2" type="password" minlength="4" required></div>
+      <button class="btn primary" type="submit">Create Account</button>
+    </form>
+    <div class="login-note">Accounts and gate-pass records are stored in this browser's Local Storage. This is a client-side system and should not be treated as server-grade authentication.</div>
   </div>
 </div>
 
 <div id="appView" class="app hidden">
   <div class="topbar">
     <div class="brand"><div class="brand-mark">L</div><div>Limburg Power Solutions <small style="display:block;font-size:10px;opacity:.75">Gate Pass & Inventory</small></div></div>
-    <div class="top-actions"><span class="user-pill">Administrator</span><button class="btn small" onclick="logout()">Logout</button></div>
+    <div class="top-actions"><span class="user-pill" id="currentUserLabel">Administrator</span><button class="btn small" onclick="logout()">Logout</button></div>
   </div>
   <div class="layout">
     <aside class="sidebar no-print">
@@ -91,7 +107,7 @@ const ADMIN_PASS = "LPSL@2026";
 
 const DBKEY="LPSL_GATEPASS_DB_V1";
 const SESSIONKEY="LPSL_GATEPASS_SESSION";
-const defaultDB={passes:[],deleted:[],released:[],counter:1,company:{
+const defaultDB={users:[{username:"LPSLADMIN",name:"Administrator",password:"LPSL@2026",role:"admin"}],passes:[],deleted:[],released:[],counter:1,company:{
   name:"LIMBURG POWER SOLUTIONS",
   address:"Dhaka, Bangladesh",
   phone:"",
@@ -108,14 +124,22 @@ function loadDB(){
   }catch(e){return structuredClone(defaultDB)}
 }
 function saveDB(){localStorage.setItem(DBKEY,JSON.stringify(db))}
-function isLogged(){return sessionStorage.getItem(SESSIONKEY)==="1"}
+function currentAccount(){try{return JSON.parse(sessionStorage.getItem("LPSL_CURRENT_USER")||"null")}catch(e){return null}}
+function isLogged(){return !!currentAccount()}
+function showAuth(mode){
+ document.getElementById("loginForm").classList.toggle("hidden",mode!=="login");
+ document.getElementById("registerForm").classList.toggle("hidden",mode!=="register");
+ document.getElementById("loginTab").classList.toggle("active",mode==="login");
+ document.getElementById("registerTab").classList.toggle("active",mode==="register");
+}
+function currentUserName(){return currentAccount()?.name||"Administrator"}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function money(v){return Number(v||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
 function today(){return new Date().toISOString().slice(0,10)}
 function uid(){return Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8)}
 function toast(msg,type=""){const t=document.getElementById("toast");t.textContent=msg;t.className="toast "+type;setTimeout(()=>t.className="toast hidden",2600)}
 function setPage(p){currentPage=p;document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("active",b.dataset.page===p));renderPage()}
-function logout(){sessionStorage.removeItem(SESSIONKEY);location.reload()}
+function logout(){sessionStorage.removeItem(SESSIONKEY);sessionStorage.removeItem("LPSL_CURRENT_USER");location.reload()}
 
 function nextNumber(){
   /* Released numbers may only be reused by an administrator. */
@@ -183,11 +207,11 @@ function formHTML(){
   <div class="field"><label>Gate Pass No.</label><input name="number" value="${esc(number)}" readonly></div>
   <div class="field"><label>Date</label><input name="date" type="date" value="${esc(p?.date||today())}" required></div>
   <div class="field"><label>Time</label><input name="time" type="time" value="${esc(p?.time||new Date().toTimeString().slice(0,5))}"></div>
-  <div class="field"><label>Gate / Location</label><input name="gate" value="${esc(p?.gate||"Main Gate")}"></div>
+  <div class="field"><label>Type</label><select name="type"><option value="Returnable" ${p?.type!=="Non-Returnable"?"selected":""}>Returnable</option><option value="Non-Returnable" ${p?.type==="Non-Returnable"?"selected":""}>Non-Returnable</option></select></div>
   <div class="field span2"><label>Receiver / Company / Customer</label><input name="receiver" value="${esc(p?.receiver||"")}" required></div>
   <div class="field"><label>Contact / Mobile</label><input name="contact" value="${esc(p?.contact||"")}"></div>
-  <div class="field"><label>Vehicle No.</label><input name="vehicle" value="${esc(p?.vehicle||"")}"></div>
-  <div class="field span2"><label>Purpose</label><input name="purpose" value="${esc(p?.purpose||"")}"></div>
+  <div class="field"><label>Carried By</label><input name="carriedBy" value="${esc(p?.carriedBy||"")}"></div>
+  <div class="field"><label>Vehicle No.</label><input name="vehicle" value="${esc(p?.vehicle||"")}"></div><div class="field"><label>Received By</label><input name="receivedBy" value="${esc(p?.receivedBy||"")}"></div><div class="field"><label>Store In-Charge</label><input name="storeInCharge" value="${esc(p?.storeInCharge||"")}"></div><div class="field"><label>Authorized By</label><input name="authorizedBy" value="${esc(p?.authorizedBy||"")}"></div><div class="field span2"><label>Purpose / Remarks</label><input name="purpose" value="${esc(p?.purpose||"")}"></div>
   <div class="field span2"><label>Delivery / Return Address</label><input name="address" value="${esc(p?.address||"")}"></div>
  </div></div>
  <div class="card"><h2>Product / Inventory Items</h2>
@@ -204,12 +228,13 @@ function formHTML(){
  </form>`;
 }
 function itemRow(item){
- return `<div class="item-row">
- <input placeholder="Product / Item Name" class="i-name" value="${esc(item.name)}" required>
+ return `<div class="item-row" style="grid-template-columns:1.35fr 1fr 65px 75px 125px 1fr 42px">
+ <input placeholder="Description / Item Details" class="i-name" value="${esc(item.name)}" required>
  <input placeholder="Part No. / Model" class="i-part" value="${esc(item.partNo||"")}">
+ <input placeholder="Unit" class="i-unit" value="${esc(item.unit||"PCS")}">
  <input type="number" min="0" step="0.01" placeholder="Qty" class="i-qty" value="${esc(item.qty||1)}">
  <div class="return-cell"><input type="checkbox" class="return-toggle i-return" ${item.returned?"checked":""}> <span class="return-label" style="color:${item.returned?'#137333':'#b42318'}">${item.returned?"RETURNED":"NOT RETURNED"}</span></div>
- <select class="i-condition"><option ${item.condition==="Good"?"selected":""}>Good</option><option ${item.condition==="Used"?"selected":""}>Used</option><option ${item.condition==="Damaged"?"selected":""}>Damaged</option><option ${item.condition==="N/A"?"selected":""}>N/A</option></select>
+ <input placeholder="Remarks" class="i-remarks" value="${esc(item.remarks||"")}">
  <button type="button" class="btn small danger remove-item" onclick="this.parentElement.remove()">×</button>
  </div>`;
 }
@@ -220,9 +245,9 @@ function savePass(e){
  const f=new FormData(e.target);
  const rows=[...document.querySelectorAll("#items .item-row")];
  if(!rows.length){toast("Add at least one product","error");return}
- const items=rows.map(r=>({name:r.querySelector(".i-name").value.trim(),partNo:r.querySelector(".i-part").value.trim(),qty:Number(r.querySelector(".i-qty").value||0),returned:r.querySelector(".i-return").checked,condition:r.querySelector(".i-condition").value}));
+ const items=rows.map(r=>({name:r.querySelector(".i-name").value.trim(),partNo:r.querySelector(".i-part").value.trim(),qty:Number(r.querySelector(".i-qty").value||0),returned:r.querySelector(".i-return").checked,condition:"N/A",unit:r.querySelector(".i-unit").value.trim(),remarks:r.querySelector(".i-remarks").value.trim()}));
  if(items.some(i=>!i.name)){toast("Every product needs an item name","error");return}
- const data={id:editingId||uid(),number:f.get("number"),date:f.get("date"),time:f.get("time"),gate:f.get("gate"),receiver:f.get("receiver"),contact:f.get("contact"),vehicle:f.get("vehicle"),purpose:f.get("purpose"),address:f.get("address"),remarks:f.get("remarks"),preparedBy:f.get("preparedBy"),approvedBy:f.get("approvedBy"),items,updatedAt:new Date().toISOString()};
+ const data={id:editingId||uid(),createdBy:editingId?(db.passes.find(x=>x.id===editingId)?.createdBy||currentUserName()):currentUserName(),updatedBy:currentUserName(),number:f.get("number"),date:f.get("date"),time:f.get("time"),gate:f.get("gate"),receiver:f.get("receiver"),contact:f.get("contact"),vehicle:f.get("vehicle"),type:f.get("type"),carriedBy:f.get("carriedBy"),receivedBy:f.get("receivedBy"),storeInCharge:f.get("storeInCharge"),authorizedBy:f.get("authorizedBy"),purpose:f.get("purpose"),address:f.get("address"),remarks:f.get("remarks"),preparedBy:f.get("preparedBy"),approvedBy:f.get("approvedBy"),items,updatedAt:new Date().toISOString()};
  if(editingId){const idx=db.passes.findIndex(p=>p.id===editingId);if(idx>=0)db.passes[idx]=data}
  else{data.createdAt=new Date().toISOString();db.passes.push(data)}
  saveDB();toast("Gate pass saved successfully","success");editingId=null;setPage("passes");
@@ -278,18 +303,34 @@ function printPass(id){
 }
 function printHTML(p){
  const returned=p.items.filter(i=>i.returned).length;
- return `<div class="gp-header"><div><div class="gp-brand">${esc(db.company.name)}</div><div style="font-size:9px;color:#555;margin-top:4px">${esc(db.company.address)}${db.company.phone?" | "+esc(db.company.phone):""}</div></div><div class="gp-title"><h1>GATE PASS</h1><div>${esc(p.number)}</div></div></div>
+ const rows=Array.from({length:10},(_,n)=>p.items[n]||null);
+ return `<div class="gp-header">
+ <div><div class="gp-brand">${esc(db.company.name||"LIMBURG POWER SOLUTIONS LIMITED")}</div>
+ <div style="font-size:9px;color:#555;margin-top:4px">${esc(db.company.address||"House #18, Road #18, Sector #10, Uttara, Dhaka-1230")}${db.company.phone?" | "+esc(db.company.phone):""}</div>
+ <div style="font-size:9px;color:#555">${esc(db.company.email||"sales@limburg-power.com")}</div></div>
+ <div class="gp-title"><h1>GATE PASS</h1><div>${esc(p.number)}</div></div></div>
  <div class="gp-meta">
- <div><div class="gp-label">Gate Pass No.</div><div class="gp-value">${esc(p.number)}</div></div><div><div class="gp-label">Date / Time</div><div class="gp-value">${esc(p.date)} ${esc(p.time||"")}</div></div>
- <div><div class="gp-label">Receiver / Company</div><div class="gp-value">${esc(p.receiver)}</div></div><div><div class="gp-label">Contact</div><div class="gp-value">${esc(p.contact)}</div></div>
- <div><div class="gp-label">Vehicle No.</div><div class="gp-value">${esc(p.vehicle)}</div></div><div><div class="gp-label">Gate</div><div class="gp-value">${esc(p.gate)}</div></div>
- <div><div class="gp-label">Purpose</div><div class="gp-value">${esc(p.purpose)}</div></div><div><div class="gp-label">Return Status</div><div class="gp-value">${returned}/${p.items.length} Returned</div></div>
+ <div><div class="gp-label">Gate Pass No.</div><div class="gp-value">${esc(p.number)}</div></div>
+ <div><div class="gp-label">Date</div><div class="gp-value">${esc(p.date)}</div></div>
+ <div><div class="gp-label">Type</div><div class="gp-value">${p.items.every(i=>i.returned)?"RETURNABLE":"NON-RETURNABLE"}</div></div>
+ <div><div class="gp-label">Client / Company</div><div class="gp-value">${esc(p.receiver)}</div></div>
+ <div><div class="gp-label">Carried By</div><div class="gp-value">${esc(p.carriedBy||p.receiver)}</div></div>
+ <div><div class="gp-label">Mobile No.</div><div class="gp-value">${esc(p.contact)}</div></div>
+ <div style="grid-column:1/3"><div class="gp-label">Address</div><div class="gp-value">${esc(p.address||"")}</div></div>
  </div>
- <table class="gp-table"><thead><tr><th style="width:35px">SL</th><th>Product / Item Description</th><th>Part No. / Model</th><th style="width:45px">Qty</th><th style="width:75px">Return</th><th style="width:70px">Condition</th></tr></thead><tbody>${p.items.map((i,n)=>`<tr><td>${n+1}</td><td>${esc(i.name)}</td><td>${esc(i.partNo)}</td><td>${esc(i.qty)}</td><td style="color:${i.returned?'#137333':'#b42318'};font-weight:800">${i.returned?'● RETURNED':'● NOT RETURNED'}</td><td>${esc(i.condition)}</td></tr>`).join("")}</tbody></table>
- <div class="gp-summary"><b>Total Items:</b> ${p.items.length} &nbsp;&nbsp; <b>Returned:</b> ${returned} &nbsp;&nbsp; <b>Pending:</b> ${p.items.length-returned}</div>
- <div class="gp-note"><b>Delivery / Return Address:</b> ${esc(p.address||"—")}<br><b>Remarks:</b> ${esc(p.remarks||"—")}</div>
- <div class="gp-footer"><div><div class="sign">${esc(p.preparedBy||"")}</div>Prepared By</div><div><div class="sign"></div>Security / Gate</div><div><div class="sign">${esc(p.approvedBy||"")}</div>Approved By</div></div>
- <div style="margin-top:18px;text-align:center;font-size:8px;color:#666">This gate pass is system generated. Gate pass number: ${esc(p.number)}</div>`;
+ <div style="font-size:11px;font-weight:800;margin-top:12px">FOLLOWING GOODS ARE PERMITTED TO BE CARRIED</div>
+ <table class="gp-table"><thead><tr><th style="width:30px">SL</th><th>DESCRIPTION / ITEM DETAILS</th><th style="width:55px">UNIT</th><th style="width:45px">QTY</th><th>REMARKS</th></tr></thead>
+ <tbody>${rows.map((i,n)=>i?`<tr><td>${n+1}</td><td>${esc(i.name)}${i.partNo?`<br><span style="font-size:8px">Part No.: ${esc(i.partNo)}</span>`:""}</td><td>${esc(i.unit||"PCS")}</td><td>${esc(i.qty)}</td><td><span style="color:${i.returned?'#137333':'#b42318'};font-weight:800">${i.returned?'● RETURNED':'● NOT RETURNED'}${i.remarks?` — ${esc(i.remarks)}`:""}</span></td></tr>`:`<tr><td>${n+1}</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>`).join("")}</tbody></table>
+ <div style="font-size:10px;margin-top:8px"><b>Purpose / Remarks:</b> ${esc(p.purpose||"")} ${p.remarks?" — "+esc(p.remarks):""}</div>
+ <div class="gp-footer">
+ <div><div class="sign">${esc(p.receivedBy||p.receiver||"")}</div>Received By</div>
+ <div><div class="sign">${esc(p.preparedBy||"")}</div>Prepared By</div>
+ <div><div class="sign">${esc(p.storeInCharge||"")}</div>Store In-Charge</div>
+ </div>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:25px;text-align:center;font-size:10px">
+ <div><div class="sign">${esc(p.authorizedBy||p.approvedBy||"")}</div>Authorized By</div>
+ <div><div class="sign"></div>Gate / Security</div></div>
+ <div style="margin-top:16px;text-align:center;font-size:8px;color:#666">LIMBURG POWER SOLUTIONS LIMITED Official Gate Pass • Retain a copy for record.</div>`;
 }
 
 document.addEventListener("click",e=>{
@@ -297,12 +338,22 @@ document.addEventListener("click",e=>{
 });
 document.getElementById("loginForm").addEventListener("submit",e=>{
  e.preventDefault();
- const u=document.getElementById("loginUser").value,p=document.getElementById("loginPass").value;
- if(u===ADMIN_USER&&p===ADMIN_PASS){sessionStorage.setItem(SESSIONKEY,"1");document.getElementById("loginView").classList.add("hidden");document.getElementById("appView").classList.remove("hidden");renderPage()}
- else toast("Invalid admin username or password","error");
+ const u=document.getElementById("loginUser").value.trim(), pw=document.getElementById("loginPass").value;
+ const account=(db.users||[]).find(x=>x.username.toLowerCase()===u.toLowerCase()&&x.password===pw);
+ if(account){sessionStorage.setItem(SESSIONKEY,"1");sessionStorage.setItem("LPSL_CURRENT_USER",JSON.stringify({username:account.username,name:account.name,role:account.role}));document.getElementById("loginView").classList.add("hidden");document.getElementById("appView").classList.remove("hidden");document.getElementById("currentUserLabel").textContent=account.name+" ("+account.username+")";renderPage()}
+ else toast("Invalid username or password","error");
+});
+document.getElementById("registerForm").addEventListener("submit",e=>{
+ e.preventDefault();
+ const name=document.getElementById("regName").value.trim(), u=document.getElementById("regUser").value.trim(), pw=document.getElementById("regPass").value, pw2=document.getElementById("regPass2").value;
+ if(pw!==pw2){toast("Passwords do not match","error");return}
+ if((db.users||[]).some(x=>x.username.toLowerCase()===u.toLowerCase())){toast("Username already exists","error");return}
+ db.users.push({username:u,name,password:pw,role:"user"});saveDB();
+ toast("Account created. Please sign in.","success");showAuth("login");document.getElementById("loginUser").value=u;document.getElementById("loginPass").value="";
 });
 
-if(isLogged()){document.getElementById("loginView").classList.add("hidden");document.getElementById("appView").classList.remove("hidden");renderPage()}
+
+if(isLogged()){document.getElementById("loginView").classList.add("hidden");document.getElementById("appView").classList.remove("hidden");const cu=currentAccount();document.getElementById("currentUserLabel").textContent=(cu?.name||"Administrator")+" ("+(cu?.username||"LPSLADMIN")+")";renderPage()}
 else{document.getElementById("appView").classList.add("hidden")}
 setTimeout(bindReturnLabels,100);
 </script>
